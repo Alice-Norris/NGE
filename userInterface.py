@@ -28,7 +28,7 @@ class BMP2GBGui(Frame):
         self.imageAreaLabel = Label(self.programFrame, text = "Image Area", borderwidth = 2, relief=GROOVE)
         self.imageAreaLabel.grid()
 
-#Testing
+#Testin
 BMP2GB = BMP2GBGui()
 BMP2GB.master.title('Bitmap 2 Gameboy')
 BMP2GB.mainloop()
