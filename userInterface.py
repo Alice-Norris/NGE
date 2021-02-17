@@ -30,15 +30,12 @@ def sheetArea(self):
     self.sheetLabel.grid()
     row = 0
     column = 0
-    characters=[]
-    while(row <= 16 and column <= 8):
+    while(row <= 15 and column <= 8):
         self.sheetDisplay.create_rectangle(row*32, column*32, row*32+31, column*32+31)
         column += 1
-        if (column == 9):
+        if (column == 8):
             column = 0
             row += 1
-        characters.append(1)
-        print(len(characters))
         
 def tileArea(self):
     self.tileFrame = Frame(self, borderwidth = 2, relief = GROOVE)
@@ -49,13 +46,15 @@ def tileArea(self):
     self.tileLabel.grid()
     row = 0
     column = 0
-    while (row <= 9 and column <= 9):
-       self.tileDisplay.create_rectangle(row*32, column*32, row*32+31, column*32+31)
-       column += 1
-       if (column == 10):
-        column = 0
-        row += 1
-
+    characters=[]
+    while (row < 8 and column < 8):
+        self.tileDisplay.create_rectangle(row*32, column*32, row*32+31, column*32+31)
+        column += 1
+        if (column == 8):
+            column = 0
+            row += 1
+        characters.append(1)
+    print(len(characters))
 
 class BMP2GBGui(Frame):
     def __init__ (self, master=None):
