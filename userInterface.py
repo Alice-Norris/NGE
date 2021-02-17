@@ -4,6 +4,7 @@ def fileMenu(self):
     self.fileMenu = Menu(self.menuBar, tearoff = 0)
     self.menuBar.add_cascade(label = 'File', menu=self.fileMenu)
     self.fileMenu.add_command(label = 'Import image...')
+    self.fileMenu.add_command(label = "Quit", command=self.quit)
 
 #creates edit menu, menu items, and defines their commands
 def editMenu(self):
