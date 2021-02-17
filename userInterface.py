@@ -32,7 +32,6 @@ def tileArea(self):
     self.tileDisplay.grid()
     self.tileLabel = Label(self.tileFrame, text = "Tile View")
     self.tileLabel.grid()
-    tileDisplay.
 
 class BMP2GBGui(Frame):
     def __init__ (self, master=None):
