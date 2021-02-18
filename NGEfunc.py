@@ -31,7 +31,7 @@ class character:
         self.objectNum = objectNum #this should be a hex number
         self.sheet = sheet # this is sheet number is for program purposes and does not (yet) relate to the output data
         self.data = []
-        self.createPixelArray() 
+        create2dArray(8, 8, self.data)
 
 class sheet:
     def __init__(self, sheetNum):
@@ -40,9 +40,8 @@ class sheet:
 
     def addCharacter(self, character):
         self.tiles.append(character)
-test = []
-create2dArray(10, 2, test)
-for row in test:
-    print(row)
 
-print(test[4][1])
+character1 = character(0, 1)
+
+for row in character1.data:
+    print(row)
