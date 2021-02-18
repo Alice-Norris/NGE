@@ -43,5 +43,6 @@ class sheet:
 
 character1 = character(0, 1)
 
-for row in character1.data:
-    print(row)
+pixels = sheet(2)
+pixels.addCharacter(character1)
+print(pixels.tiles[0].objectNum)
