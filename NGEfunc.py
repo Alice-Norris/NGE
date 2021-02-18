@@ -39,11 +39,11 @@ class sheet:
         self.tiles = []
         create2dArray(16,8,self.tiles)
 
-    def addCharacter(self, character):
-        self.tiles.append(character)
+    def addCharacter(self, character, x, y):
+        self.tiles[x][y] = character
 
 character1 = character(0, 1)
 
 pixels = sheet(2)
-pixels.addCharacter(character1)
-print(pixels.tiles[0].objectNum)
+pixels.addCharacter(character1, 0, 0)
+print(pixels.tiles[0][0].objectNum)
