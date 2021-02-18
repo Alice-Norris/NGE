@@ -36,7 +36,8 @@ class character:
 class sheet:
     def __init__(self, sheetNum):
         self.sheetNum = sheetNum
-        self.tiles =    []
+        self.tiles = []
+        create2dArray(16,8,self.tiles)
 
     def addCharacter(self, character):
         self.tiles.append(character)
