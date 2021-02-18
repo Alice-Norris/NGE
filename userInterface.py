@@ -19,8 +19,6 @@ def helpMenu(self):
     self.helpMenu.add_command(label = 'About')
 
 def sheetArea(self):
-    height = 320
-    width = 320
     self.sheetFrame = Frame(self, borderwidth = 2, relief = GROOVE)
     self.sheetFrame.grid(column = 0, row = 0)
     self.sheetDisplay = Canvas(self.sheetFrame, height=256, width=512, bg='#FFFFFF', border=0, borderwidth = 0, highlightthickness=0)
