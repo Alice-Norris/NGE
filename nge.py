@@ -26,7 +26,6 @@ def create_2d_array(width, height):
         posy = 0
     return array
 
-
 ############################################################
 ####              END NGE FUNCTION SECTION              ####
 ############################################################
@@ -35,13 +34,19 @@ def create_2d_array(width, height):
 # This section contains the classes for the NGE            #
 ############################################################
 
+class Tool:
+    def __init__(cls, name, bitmap):
+        cls.tool_name = name
+        cls.tool_bitmap = bitmap
+
 #This class is used to store all temporary program data.
 class Workspace:
-    def __init__(cls):
+    def __init__(cls, tool):
         cls.current_character = None
         cls.current_sheet = None
         cls.current_book = None
-        cls.current_tool = None
+        cls.current_tool = tool
+        cls.current_color = None
 
 #this class is used to describe the character data for a single object
 class Character: 
@@ -71,12 +76,3 @@ class Book:
 ############################################################
 ####               END NGE CLASSES SECTION              ####
 ############################################################
-
-
-character1 = Character(0, 1)
-
-sheet1 = Sheet(0)
-
-sheet1.add_character(character1, 0, 0)
-
-print(sheet1.character_array[0][0].data[7][7])

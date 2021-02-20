@@ -1,4 +1,4 @@
-from nge import Character, Sheet, Book, create_2d_array
+from nge import Character, Sheet, Book, create_2d_array, Workspace, Tool
 from tkinter import *
 ####                   FUNCTION SECTION                 ####
 #                                                          #
@@ -8,15 +8,15 @@ from tkinter import *
 #   be placed in here.                                     #
 ############################################################
 
-#this function fills the view canvases with rectangles.
-#x defines the number of rectangles across to be drawn across
+#this function fills the given canvas with rectangles.
+#x defines the number of rectangles to be drawn across
 #y defines the number of rectangles to be drawn down
 def view_grid_generator(canvas, x, y):
     row = 0
     column = 0
     rectangles = create_2d_array(x, y)
     while(row < x):
-        canvas.create_rectangle(row*33, column*33, row*33+33, column*33+33, )
+        canvas.create_rectangle(row*33, column*33, row*33+33, column*33+33, fill='#ffffff')
         column += 1
         if (column == y):
             column = 0
@@ -24,8 +24,18 @@ def view_grid_generator(canvas, x, y):
         
 def create_color_canvas(self, frame, color):
     #self.tile_display = Canvas(self.tile_frame, height = 266, width = 266, bg = '#FFFFFF', borderwidth = 0, highlightthickness=0)
-    self.tile_display = Canvas(frame, height = 32, width = 32, bg = color, borderwidth = 3, relief = 'sunken')
-    return self.tile_display
+    self.color_canvas = Canvas(frame, height = 32, width = 32, borderwidth = 3, relief = 'sunken')
+    self.color_canvas.create_rectangle(37, 37, 0, 0, fill = color)
+    return self.color_canvas
+
+def select_tool(self, tool, cursor):
+    workspace.current_tool = tool
+    self.tile_frame.winfo_children()[0].configure(cursor = cursor)
+
+
+def select_color(self, color):
+    self.current_color.configure(bg = color)
+
 
 ############################################################
 ####                END FUNCTION SECTION                ####
@@ -108,6 +118,9 @@ def sheet_area(self):
         
 def tile_area(self):
     self.tile_display = Canvas(self.tile_frame, height = 266, width = 266, bg = '#FFFFFF', borderwidth = 0, highlightthickness=0)
+    self.tile_display.bind('<Motion>', self.mouse_over_tile_display)
+    self.tile_display.bind('<Leave>', self.mouse_left_tile_display)
+    self.tile_display.bind('<ButtonRelease>', self.tile_display_clicked)
     self.tile_display.grid()
     row = 0
     column = 0
@@ -118,22 +131,29 @@ def tool_area(self):
     self.pencil_image = BitmapImage(file='pencil.xbm', foreground ='black', background='white')
     self.eraser_image = BitmapImage(file='eraser.xbm', foreground = 'black', background = 'white')
     self.bucket_image = BitmapImage(file = 'bucket.xbm', foreground = 'black', background = 'white')
-    self.pencil_button = Button(self.tool_frame, image=self.pencil_image, width=64, height=64)
+    self.cursor_image = BitmapImage(file = 'select.xbm', foreground = 'black', background = 'white')
+    self.select_button = Button(self.tool_frame, image=self.cursor_image, width = 64, height = 64, command = lambda: select_tool(self, Select, 'arrow'))
+    self.select_button.grid()
+    self.pencil_button = Button(self.tool_frame, image=self.pencil_image, width=64, height=64, command = lambda: select_tool(self, Pencil, 'tcross'))
     self.pencil_button.grid()
-    self.eraser_button = Button(self.tool_frame, image=self.eraser_image, width=64, height = 64)
+    self.eraser_button = Button(self.tool_frame, image=self.eraser_image, width=64, height = 64, command = lambda: select_tool(self, Eraser, 'tcross'))
     self.eraser_button.grid()
-    self.bucket_button = Button(self.tool_frame, image = self.bucket_image, width = 64, height = 64)
+    self.bucket_button = Button(self.tool_frame, image = self.bucket_image, width = 64, height = 64, command = lambda: select_tool(self, Bucket, 'tcross'))
     self.bucket_button.grid()
     
 def color_area(self):
     self.black_swatch = create_color_canvas(self, self.palette_frame, '#000000')
     self.black_swatch.grid(pady=5)
+    self.black_swatch.bind('<ButtonRelease>', self.set_current_color)
     self.dk_gray_swatch = create_color_canvas(self, self.palette_frame, '#575757')
     self.dk_gray_swatch.grid(pady=5)
+    self.dk_gray_swatch.bind('<ButtonRelease>', self.set_current_color)
     self.lt_gray_swatch = create_color_canvas(self, self.palette_frame, '#ababab')
     self.lt_gray_swatch.grid(pady=5)
+    self.lt_gray_swatch.bind('<ButtonRelease>', self.set_current_color)
     self.white = create_color_canvas(self, self.palette_frame, '#ffffff')
     self.white.grid(pady=5)
+    self.white.bind('<ButtonRelease>', self.set_current_color)
     self.current_color = create_color_canvas(self, self.current_color_frame, '#ffffff')
     self.current_color.grid()
 ############################################################
@@ -146,7 +166,7 @@ class BMP2GBGui(Frame):
         self.grid_propagate(0)
         self.grid()
         self.create_widgets()
-
+        
     def create_widgets(self):
         #setting top level window to a variable
         TLW = self.winfo_toplevel()
@@ -163,13 +183,46 @@ class BMP2GBGui(Frame):
         #call function to create frams
         create_frames(self)
 
-        #create canvases for sheet and tile views
-        sheet_area(self)
-        tile_area(self)
-        tool_area(self)
+        #fills working areas
+        sheet_area(self)    #populates sheet frame
+        tile_area(self)     #populates tile frame
+        tool_area(self)     #populates tool frame 
+        color_area(self)    #populate color frame with available colors and current color tools
 
-        color_area(self)
+    def mouse_over_tile_display(self, event):
+        cursor_image = workspace.current_tool.tool_bitmap
+        tile_display_x= self.tile_display.canvasx(event.x)
+        tile_display_y = self.tile_display.canvasx(event.y)
+        print(tile_display_x, " ", tile_display_y)
+        print(workspace.current_tool.tool_bitmap)
+        if(not self.tile_display.find_withtag(65)):
+            self.tile_display.create_bitmap(tile_display_x - 36, tile_display_y - 36, bitmap = cursor_image)
+        else:
+            self.tile_display.itemconfigure(65, bitmap = cursor_image)
+            pencil_coords = self.tile_display.coords(65)
+            self.tile_display.move(65, event.x - pencil_coords[0] - 36, event.y - pencil_coords[1] - 36)
+
+    def mouse_left_tile_display(self, event):
+        self.tile_display.itemconfigure(65, bitmap = '@empty.xbm')
+
+    def set_current_color(self, event):
+        color=event.widget.itemcget(1, "fill")
+        self.current_color.itemconfigure(1, fill=color)
+        workspace.current_color = color
+
+    def tile_display_clicked(self, event):
+        click_x = self.tile_display.canvasx(event.x)
+        click_y = self.tile_display.canvasy(event.y)
+        print(click_x, " ", click_y)
+        clicked_rectangle = self.tile_display.find_closest(click_x, click_y)[0]
+        self.tile_display.itemconfigure(clicked_rectangle, fill=workspace.current_color)
+
 #Testin
+Pencil = Tool('pencil', '@pencil.xbm')
+Bucket = Tool('bucket', '@bucket.xbm')
+Eraser = Tool('eraser', '@eraser.xbm')
+Select = Tool('none', '@empty.xbm')
+workspace = Workspace(Select)
 BMP2GB = BMP2GBGui()
 BMP2GB.master.title('Bitmap 2 Gameboy')
 BMP2GB.mainloop()
