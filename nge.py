@@ -52,13 +52,22 @@ class Workspace:
 class Character: 
     def __init__(cls, object_num, sheet):
         cls.object_num = object_num #this should be a hex number
-        cls.sheet = sheet # this is sheet number is for program purposes and does not (yet) relate to the output data
+        cls.sheet = sheet #stores the sheet object this character is a member of
         cls.data = create_2d_array(8, 8) #8x8 list, used to store individual pixel information. Should be 0 to 3.
 
+class Book:
+    def __init__(cls, book_name):
+        cls.book_name = book_name #This string is the name of the book. Books hold sheets.
+        cls.sheet_array = [] #This list contains the Sheet objects that are in this book
+
+    def add_sheet(cls, sheet):
+        cls.sheet_array.append(sheet)
+
 class Sheet:
-    def __init__(cls, sheet_num):
+    def __init__(cls, sheet_num, book):
         cls.sheet_num = sheet_num #This integer identifies the number of the sheet, which holds individual characters. Sheets are stored in Books
         cls.character_array = create_2d_array(16, 8) #16x8 list, used to store characters.
+        cls.book = book #This variable stores the book object an instance of Sheet is a member of.
 
     def add_character(cls, character, x, y):
         cls.character_array[x][y] = character #adds given character at the x, y position provided
@@ -69,10 +78,7 @@ class Sheet:
     def add_rectangle(cls, rectangle, x, y): #adds a rectangle canvas object to the two-dimensional list of rectangles.
         cls.rectangle_array[x][y] = rectangle
 
-class Book:
-    def __init___(cls, book_name):
-        cls.book_name = book_name #This string is the name of the book. Books hold sheets.
-        cls.sheet_array = [] #This list contains the Sheet objects that it is a part of.
 ############################################################
 ####               END NGE CLASSES SECTION              ####
 ############################################################
+
