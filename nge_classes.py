@@ -10,22 +10,21 @@ class Tool:
 
 #this class is used to describe the character data for a single object
 class Character: 
-    def __init__(cls, obj_num, sheet, name = "none"):
+    def __init__(cls, obj_num, name = "unnamed"):
         cls.obj_num = obj_num #this should be a hex number
-        cls.sheet = sheet #stores the sheet object this character is a member of
         cls.data = [] #64 member list, used to store individual pixel information. Should be 0 to 3.
-        cls.name = name
+        cls.name = name + "_" + str(obj_num)
         while (len(cls.data) < 64):
             cls.data.append(3)
 
 #this class holds "sheets" of characters. 
 class Sheet:
-    def __init__(cls):
+    def __init__(cls, sheet_name):
+        cls.sheet_name = sheet_name
         cls.char_list = [] #list used to store characters.
-        cls.book = book #This variable stores the book object an instance of Sheet is a member of.
         char_num = 0
         while(len(cls.char_list) <= 127):
-            char = Character(char_num, cls.sheet_num)
+            char = Character(char_num, sheet_name)
             cls.char_list.append(char)
             char_num += 1
 
@@ -38,4 +37,4 @@ class Shelf:
     def __init__(cls, shelf_name):
         cls.shelf_name = shelf_name
         cls.num_books = 0
-        cls.sheet_list = []
+        cls.book_dict = {}
