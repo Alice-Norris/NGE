@@ -4,9 +4,9 @@ from nge_const import NGE_BLACK, NGE_DK_GRAY, NGE_LT_GRAY, NGE_WHITE
 ############################################################
 #this class creates tools with specified name and bitmap
 class Tool:
-    def __init__(cls, name, bitmap):
+    def __init__(cls, name, cursor):
         cls.tool_name = name
-        cls.tool_bitmap = bitmap
+        cls.tool_cursor = cursor
 
 #this class is used to describe the character data for a single object
 class Character: 

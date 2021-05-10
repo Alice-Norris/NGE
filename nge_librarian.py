@@ -8,15 +8,15 @@ from nge_classes import Shelf, Book, Sheet, Character
 class Librarian:
     __instance = None
     
-    def __init__(self, shelf_name):
+    def __init__(self):
         if Librarian.__instance != None:
             raise Exception("Only one librarian allowed. You've done something wrong.")
         else:
             Librarian.__instance = self
-            self.__shelf = Shelf(shelf_name)
-            self.__current_book = self.add_book("default")
-            self.__current_sheet = self.add_sheet("default")
-            self.__current_char = self.__current_sheet.char_list[0]
+            self.__shelf = Shelf('unnamed')
+            self.__current_book = None
+            self.__current_sheet = None
+            self.__current_char = None
             
 
 
@@ -48,7 +48,6 @@ class Librarian:
                 print("This book already exists!")
                 book_name += str(len(book_list.keys()))
         book_list[book_name] = Book(book_name)
-        #print(book_name, "added!")
         return book_list[book_name]
 
     def remove_book(self, book_name):
@@ -98,6 +97,8 @@ class Librarian:
         #dictionary to hold data in the format [book name] = list of sheet names
         book_dict = {}
         #for book in shelf dictionary as a tuple (book name : Book object)
+        if(not self.__shelf):
+            return book_dict
         for book in self.__shelf.book_dict.items():
             #create a list for a key value of each book name
             book_dict[book[0]] = []

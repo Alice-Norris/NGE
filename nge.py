@@ -7,10 +7,8 @@ class NGE:
     index = None
 
     def __init__(cls):
-        cls.the_librarian = Librarian("default")
-        cls.index = cls.the_librarian.request_index()
+        cls.the_librarian = Librarian()
         cls.interface = nge_interface(cls, cls.index)
-        cls.interface.master.title="Nintendo Graphics Editor"
 
 #create instance of nge_interface and NGE
 NGE = NGE()

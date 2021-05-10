@@ -1,26 +1,32 @@
-from nge_functions import character_to_hex, character_row_to_hex, update_character_data #import functions from nge
+from nge_functions import character_to_hex, character_row_to_hex #import functions from nge
 from nge_const import NGE_BLACK, NGE_DK_GRAY, NGE_LT_GRAY, NGE_WHITE, COLOR_DICT, REVERSE_COLOR_DICT
-from tkinter import Menu, Canvas, Text, BitmapImage, Button, Scrollbar, StringVar
+from nge_files import write_file_data
+from tkinter import Menu, Canvas, Text, BitmapImage, Button, Scrollbar, StringVar, TclError, Toplevel, ACTIVE, filedialog
 from tkinter.constants import *
 from tkinter import ttk
+from tkinter import messagebox
 from math import ceil, floor
 from nge_classes import Tool
-
 class nge_interface(ttk.Frame):
     #Constructor, calls functions to create GUI
     def __init__ (self, NGE, index, master=None):
         self.application = NGE
         self.index = index
-        self.current_book = self.application.the_librarian.request_current_book()
-        self.current_sheet = self.application.the_librarian.request_current_sheet()
-        self.current_char = self.current_sheet.char_list[0]
+        self.the_librarian = self.application.the_librarian
+        self.current_book = None
+        self.current_sheet = None
+        self.current_char = None
+        self.file_directory = None
+        self.filename = None
+        self.saveable = False
 
         #style setup
         nge_style = ttk.Style()
         nge_style.theme_use('winnative')
 
-        #setting top level window to a variable
+        
         ttk.Frame.__init__(self, master, width=1024, height = 768, class_ = 'application_window')
+        #setting top level window to a variable
         self.TLW = self.winfo_toplevel()
         self.grid()
         self.columnconfigure(0, minsize = 512)
@@ -30,15 +36,23 @@ class nge_interface(ttk.Frame):
         self.TLW.title("Nintendo Graphics Editor")
         #Creating menu along top of window
         self.create_menu(self.TLW)
+
+        #creating tools
         self.Select = Tool('select', BitmapImage('@empty.xbm', foreground = 'black', background = 'white'))
-        self.Pencil = Tool('pencil', BitmapImage('@pencil.xbm', foreground = 'black', background = 'white'))
-        self.Bucket = Tool('bucket', BitmapImage('@bucket.xbm', foreground = 'black', background = 'white'))
-        self.Eraser = Tool('eraser', BitmapImage('@eraser.xbm', foreground = 'black', background = 'white'))
+        self.Pencil = Tool('pencil', BitmapImage('@PencilGray.cur', foreground = 'black', background = 'white'))
+        self.Bucket = Tool('bucket', BitmapImage('@bucket.cur', foreground = 'black', background = 'white'))
+        self.Eraser = Tool('eraser', BitmapImage('@Eraser.cur', foreground = 'black', background = 'white'))
         
-        #Creates different areas of the GUI
+        #create program variables
         self.active_book = StringVar()
         self.active_sheet = StringVar()
+        self.active_char = StringVar()
+        self.active_char_num = StringVar()
         self.entry_text = StringVar()
+        self.current_tool = self.Select
+        self.current_color = NGE_WHITE
+
+        #Creates different areas of the GUI
         self.organization_frames()
         self.sheet_area()    #populates sheet frame
         self.tile_area()     #populates tile frame
@@ -47,40 +61,42 @@ class nge_interface(ttk.Frame):
         self.tree_area()
         self.text_area()
 
-        #create variables for UI
-        self.current_tool = self.Select
-        self.current_color = self.current_color_swatch.cget('bg')
-
         #create grids in sheet and character canvases
-        self.create_canvas_rectangles(self.tile_display)
-        self.create_canvas_rectangles(self.sheet_display)
-        self.create_sheet_display_pixels()
+        self.create_canvas_grid(self.tile_display)
+        self.create_canvas_grid(self.sheet_display)
 
     ###################
     ###GUI FUNCTIONS###
     ###################
+
+    #highlights text in text area to show hex code of current character
     def highlight_text(self):
         self.hex_display.tag_delete('current_char')
-        current_char_num = self.current_char.obj_num
+        current_char_num = int(self.active_char_num.get())
         self.hex_display.tag_add('current_char', str(current_char_num + 2) + '.0', str(current_char_num + 2) + '.53')
         self.hex_display.tag_config('current_char', background = '#c0c0c0')
 
-    def create_canvas_rectangles(self, canvas):
+
+    def create_canvas_grid(self, canvas):
         row = 0
         column = 0
-        while(column < floor(int(canvas.cget('height')) / 33)):
-            canvas.create_rectangle(row*33, column*33, row*33+33, column*33+33, tags="grid", fill = "#ffffff")
+        height = int(canvas.cget('height'))
+        width = int(canvas.cget('width'))
+        canvas.create_line(width, 0, width, height+1)
+        while (column <= floor(width / 33)):
+            canvas.create_line(row*33, 0, row*33, height)
             row += 1
-            if (row == floor(int(canvas.cget('width')) / 33)):
+            if (row == floor(width / 33)):
+                canvas.create_line(0, column * 33, width, column * 33)
                 row= 0
                 column += 1
         
     def text_area_setup(self):
-        grid = self.sheet_display.find_all()
+        text_area_width = 53
         hex_loc = 0
         header = "       0"
         line_num = 2
-        while len(header) < self.hex_display.cget('width'):
+        while len(header) < text_area_width:
             header += "  " + hex(hex_loc + 1)[2:4]
             hex_loc += 1
         self.hex_display.insert('1.0', header + '\n')
@@ -89,119 +105,146 @@ class nge_interface(ttk.Frame):
             line_index = 5
             byte_num = 0
             index = str(line_num) + "." + str(line_index)
-            character_data = character_to_hex(character)
+            character_hex = character_to_hex(character)
             self.hex_display.insert(str(line_num) + ".0", str(hex(character.obj_num)).rjust(4) + "|")
             while(byte_num < 32):
                 if(byte_num < 32):
-                    hex_line += " " + (character_data[byte_num : byte_num + 2])
+                    hex_line += " " + (character_hex[byte_num : byte_num + 2])
                 elif (byte_num == 32):
-                    hex_line += (character_data[byte_num : byte_num + 2])
+                    hex_line += (character_hex[byte_num : byte_num + 2])
                 byte_num += 2
             self.hex_display.insert(index, hex_line + "\n")
             line_num += 1
         self.highlight_text()
 
+    def create_tile_display_pixels(self):
+        row = 0
+        column = 0
+        while column < 8:
+            x_1 = row * 33 + 1
+            y_1 = column * 33 + 1
+            x_2 = x_1 + 31
+            y_2 = y_1 + 31
+            self.tile_display.create_rectangle(x_1, y_1, x_2, y_2, fill = self.current_color, outline = self.current_color)
+            row += 1
+            if row == 8:
+                row = 0
+                column += 1
+        
     def create_sheet_display_pixels(self):
-        characters = self.sheet_display.find_all()
         for character in self.current_sheet.char_list:
-            coords = self.sheet_display.coords(character.obj_num+1)
-            pixel_start_x = int(coords[0]+1)
-            pixel_start_y = int(coords[1]+1)
-            character = self.current_sheet.char_list[0]
+            char_num = character.obj_num
             row = 0
             column = 0
-            pixel_num = 0
-            while(row <= 7):
-                pixel_num = floor(row / 8) + column
-                pixel_value = character.data[pixel_num]
-                fill_color = REVERSE_COLOR_DICT[pixel_value]
-                self.sheet_display.create_rectangle(pixel_start_x, pixel_start_y, 
-                                                    pixel_start_x+3, pixel_start_y + 3, 
-                                                    fill = fill_color, outline = fill_color, 
-                                                    width = 1, tags = (str(character.obj_num) + " pixels"))
-                pixel_start_x += 4
+            char_start_x = (char_num % 16) * 33 + 1
+            char_start_y = floor(char_num / 16) * 33 + 1
+            pixel_x = char_start_x
+            pixel_y = char_start_y
+            pixel = 0
+            while(row < 8):
+                pixel_value = character.data[pixel]
+                color = REVERSE_COLOR_DICT[pixel_value]
+                self.sheet_display.create_rectangle(pixel_x, pixel_y, 
+                                                    pixel_x+3, pixel_y + 3, 
+                                                    fill = '#ff0000', outline = '#00ff00', 
+                                                    width = 1)
+                pixel_x += 4
                 column += 1
+                pixel += 1
                 if(column == 8):
-                    pixel_start_x = int(coords[0]+1)
                     column = 0
-                    pixel_start_y += 4
                     row += 1
+                    pixel_x = char_start_x
+                    pixel_y += 4
+                    
 
-    def update_sheet_display_pixels(self, pixel = None, color = None):
-        character = self.current_char
-        sheet_tile = character.obj_num + 1
-        sheet_tile_coords = self.sheet_display.coords(sheet_tile)
-        sheet_tile_pixels = self.sheet_display.find_overlapping(sheet_tile_coords[0] + 1, sheet_tile_coords[1] + 1, sheet_tile_coords[2] - 1, sheet_tile_coords[3] - 1)
-        self.sheet_display.itemconfigure(sheet_tile_pixels[pixel], fill = color, outline = color)
-
+    def update_sheet_display_pixels(self):
+        if self.current_tool == self.Pencil:
+            color = self.current_color
+        elif self.current_tool == self.Eraser:
+            color = '#ffffff'
+        print(self.current_char.obj_num)
+        for index, pixel in enumerate(self.current_char.data):
+            color = REVERSE_COLOR_DICT[pixel]
+            self.sheet_display.itemconfig((self.current_char.obj_num * 64 + 1) + index, fill = color, outline = color)
+   
     def update_tile_display_pixels(self):
-        self.entry_text.set(self.current_char)
-        tile_display_pixels = self.tile_display.find_all()
-        character_pixels = self.current_char.data
-        index = 0
-        while(index < len(character_pixels)):
-            pixel_color = character_pixels[index]
-            self.tile_display.itemconfig(index + 1, fill = REVERSE_COLOR_DICT[pixel_color])
-            index += 1
+        if(self.current_char):
+            self.active_char.set(self.current_char.name)
+            character_pixels = self.current_char.data
+            for index, pixel in enumerate(character_pixels):
+                self.tile_display.itemconfig(index + 1, fill = REVERSE_COLOR_DICT[pixel])
 
     def update_text_area(self):
         character = self.current_char
-        character_data = character.data
+        character_data = self.current_char.data
         hex_line = ""
         byte_num = 0
         start_index = str(character.obj_num + 2) + ".5"
         end_index = str(character.obj_num + 2) + ".53"
-        character_data = character_to_hex(character)
+        character_hex = character_to_hex(character)
         while(byte_num < 32):
             if(byte_num < 32):
-                hex_line += " " + (character_data[byte_num : byte_num + 2])
+                hex_line += " " + (character_hex[byte_num : byte_num + 2])
             elif (byte_num == 32):
-                hex_line += (character_data[byte_num : byte_num + 2])
+                hex_line += (character_hex[byte_num : byte_num + 2])
             byte_num += 2
         self.hex_display.replace(start_index, end_index, hex_line)
         self.hex_display.tag_config('current_char', background = '#c0c0c0')
 
-            
-    def tree_view_setup(self):
-        self.index = self.application.the_librarian.request_index()
-        self.active_book.set('Active Book: \n' + self.current_book.book_name)
-        self.active_sheet.set('Active Sheet: \n' + self.current_sheet.sheet_name)
-        self.tree_view_update()
-
     def tree_view_update(self):
-        self.index = self.application.the_librarian.request_index()
-        shelf_name = self.application.the_librarian.request_shelf()
-        if self.tree_view.exists('shelf'):
-            self.tree_view.delete('shelf')
-        self.tree_view.insert('', 0, iid = 'shelf', text = shelf_name)
-        for book in self.index.items():
-            book_id = book[0]
-            page_count = len(book[1][0].keys())
-            self.tree_view.insert('shelf', 'end', iid = 'book_'+book_id, values = (book_id, '', page_count))
-            for sheets in next(iter(book[1])):
-                self.tree_view.insert('book_'+book_id, 'end', iid = book_id+sheets, values=('', sheets, ''))       
+        self.index = self.the_librarian.request_index()
+        shelf_name = self.the_librarian.request_shelf()
+        if self.tree_view.exists(shelf_name):
+            self.tree_view.delete(shelf_name)
+        self.tree_view.insert('', 0, iid = shelf_name, tags = 'shelf', text = shelf_name)
+        if(len(self.index.items()) > 0):
+            for book in self.index.items():
+                book_id = book[0]
+                page_count = len(book[1][0].keys())
+                self.tree_view.insert(shelf_name, 'end', iid = 'book_'+book_id, tags = 'book', values = (book_id, '', page_count))
+                for sheets in next(iter(book[1])):
+                    self.tree_view.insert('book_'+book_id, 'end', iid = 'sheet_' + sheets, tags = 'sheet', values=('', sheets, ''))       
 
-    def actives_changed(self, book_name, sheet_name):
-        self.current_book = self.application.the_librarian.request_book(book_name)
-        self.current_sheet = self.application.the_librarian.request_sheet(sheet_name)
-        self.current_char = self.current_sheet.char_list[0]
+    def change_active(self, book_name, sheet_name = None):
+        self.current_book = self.the_librarian.request_book(book_name)
+        self.active_book.set(book_name)
+        if sheet_name:
+            self.current_sheet = self.the_librarian.request_sheet(sheet_name)
+            self.current_char = self.current_sheet.char_list[0]
+            self.active_sheet.set(sheet_name)
+            self.text_area_setup()
         self.update_tile_display_pixels()
-        self.change_sheet()
 
-    def change_sheet(self):
-        i = 128
-        sheet_pixels = self.sheet_display.find_all()
-        for char in self.current_sheet.char_list:
-            for pixel in char.data:
-                sheet_char_coords = self.sheet_display.coords(char.obj_num + 1)
-                color = REVERSE_COLOR_DICT[pixel]
-                self.sheet_display.itemconfigure(sheet_pixels[i], fill = color, outline = color)
-                i += 1
 
-            
     #######################
     ###HANDLER FUNCTIONS###
     #######################
+    def 
+    def save_as_dialog(self):
+        if self.filename:
+            self.file_menu.add_command(label = 'Save')
+        elif not self.filename:
+        print(event.widget.dir())
+        file_name_and_dir = ''
+        if action == 'open':
+            filedialog.askopenfilename            
+        elif action == 'save_as' and self.filename:
+            file_name_and_dir = filedialog.asksaveasfilename(defaultextension = '.nge', filetypes = [("NGE file", "*.nge")], initialfile = self.filename)
+        elif action == 'save_as':
+            file_name_and_dir = filedialog.asksaveasfilename(defaultextension = '.nge', filetypes = [("NGE file", "*.nge")])
+        
+        print(file_name_and_dir)
+        last_slash = file_name_and_dir.rfind("/")
+        self.filename = file_name_and_dir[last_slash+1:]
+        self.file_directory = file_name_and_dir[0:last_slash]
+
+        write_file_data(self.file_directory, self.filename, self.index, "test")
+
+    def name_dialog_action(self, event):
+        if event.widget.cget(name = 'add_book'):
+            self.the_librarian.add_book(self.input_name)
+
     def color_swatch_clicked(self, event):
         self.current_color_swatch.configure(bg = event.widget.cget('bg'))
         self.current_color = event.widget.cget('bg')
@@ -217,90 +260,133 @@ class nge_interface(ttk.Frame):
         elif (clicked_tool == 'bucket'):
             self.current_tool = self.Bucket
 
-    #makes an image of the current tool follow the mouse cursor
-    def mouse_over_tile_display(self, event):
-        cursor_image =self.current_tool.tool_bitmap
-        tile_display_x= self.tile_display.canvasx(event.x)
-        tile_display_y = self.tile_display.canvasx(event.y)
-        if(not self.tile_display.find_withtag(65)):
-            self.tile_display.create_bitmap(tile_display_x - 36, tile_display_y - 36, bitmap = self.current_tool.tool_bitmap)
-        else:
-            self.tile_display.itemconfigure(65, bitmap = cursor_image)
-            pencil_coords = self.tile_display.coords(65)
-            self.tile_display.move(65, event.x - pencil_coords[0] - 36, event.y - pencil_coords[1] - 36)
-
-    #sets bitmap to a transparent bitmap when mouse leaves tile display
-    def mouse_left_tile_display(self, event):
-        self.tile_display.itemconfigure(65, bitmap = '@empty.xbm')
-
     #detects when the tile display is clicked and applies the appropriate action given a selected tool
-    def tile_display_clicked(self, event):        
+    def tile_display_clicked(self, event):     
         click_x = self.tile_display.canvasx(event.x)
         click_y = self.tile_display.canvasy(event.y)
-        clicked_rectangle = self.tile_display.find_closest(click_x, click_y, start=1)[0]
+        clicked_rectangle = self.tile_display.find_closest(click_x, click_y)[0]
         if self.current_tool == self.Pencil:
             color = self.current_color
-            update_character_data(self.current_char, self.current_color, clicked_rectangle)
-            self.tile_display.itemconfigure(clicked_rectangle, fill = self.current_color_swatch.cget('bg'))
-            self.update_sheet_display_pixels(clicked_rectangle, color)
+            self.tile_display.itemconfigure(clicked_rectangle, fill = self.current_color)
+            self.update_sheet_display_pixels()
+            self.current_char.data[clicked_rectangle - 1] = COLOR_DICT[self.current_color]
         if self.current_tool == self.Eraser:
-            update_character_data(self.current_char, '#ffffff', clicked_rectangle)
             self.tile_display.itemconfigure(clicked_rectangle, fill = NGE_WHITE)
             self.update_sheet_display_pixels(clicked_rectangle, '#ffffff')
-        character_to_hex(self.current_char)
+            self.current_char.data[clicked_rectangle - 1] = 0
+        self.update_sheet_display_pixels()
         self.update_text_area()
         self.highlight_text()
     
     def sheet_display_clicked(self, event):
         click_x = self.sheet_display.canvasx(event.x)
         click_y = self.sheet_display.canvasy(event.y)
-        clicked_character = self.sheet_display.find_overlapping(click_x, click_y, click_x + 1, click_y + 1)[0]
-        self.current_char = self.current_sheet.char_list[clicked_character - 1]
-        current_char_num = self.current_char.obj_num
-        self.tile_display_label.config(text = "Object Number: " + str(current_char_num))
-        self.hex_display.see(str(current_char_num + 2) + '.0')
+        character_number = floor(click_x / 33) + floor(click_y / 33)*16
+        self.current_char = self.current_sheet.char_list[character_number]
+        self.active_char.set(self.current_char.name)
+        self.active_char_num.set(self.current_char.obj_num)
+        self.tile_display_label.config(text = "Object Number: " + str(character_number))
+        self.hex_display.see(str(character_number + 2) + '.0')
         self.highlight_text()
         self.update_tile_display_pixels()
-        tile_display_string = "Object " + str(self.current_char.obj_num) + ": "
+        tile_display_string = "Object " + str(character_number) + ": "
         self.tile_display_label.config(text = tile_display_string)
-        self.entry_text.set(self.current_char.name)
 
     def tile_name_enter(self, event):
         self.current_char.name = self.entry_text.get()
-
-    def add_remove_items(self, event):
-        widget_name = event.widget._name
-        if widget_name == 'add_book':
-            self.application.the_librarian.add_book(self.current_book.book_name)
-        elif widget_name == 'add_sheet':
-            self.application.the_librarian.add_sheet(self.current_sheet.sheet_name)
-        elif widget_name == 'remove_book':
-            self.application.the_librarian.remove_book(self.current_book.book_name)
-        elif widget_name == 'remove_sheet':
-            self.application.the_librarian.remove_sheet(self.current_sheet.sheet_name)
-        self.tree_view_update()
         
 
     def make_active(self, event):
-        item_type = self.tree_view.identify_column(event.x)
-        item_iid = self.tree_view.identify_row(event.y)
-        if item_type == '#1':
-            parent_iid = self.tree_view.parent(item_iid)
-            first_sheet = self.tree_view.get_children([item_iid])[0]
-            book_name = self.tree_view.item(item_iid, option = 'values')[0]
-            sheet_name = self.tree_view.item(first_sheet, option = 'values')[1]
-            self.active_book.set('Active Book: \n' + book_name)
-            self.active_sheet.set('Active Sheet: ' + sheet_name)
-            self.actives_changed(book_name, sheet_name)
+        item_iid = self.tree_view.selection()[0]
+        item_type = self.tree_view.item(item_iid, 'tags')[0]
 
-        elif item_type == '#2':
+        if(item_type == 'book'):
+            book_name = self.tree_view.item(item_iid, 'values')[0]
+            if (len(self.tree_view.get_children([item_iid])) != 0):
+                first_sheet = self.tree_view.get_children([item_iid])[0]
+                sheet_name = self.tree_view.item(first_sheet, option = 'values')[1]
+                self.change_active(book_name, sheet_name)
+            else:
+                self.change_active(book_name)
+
+        elif (item_type == 'sheet'):
             parent_iid = self.tree_view.parent(item_iid)
             book_name = self.tree_view.item(parent_iid, option = 'values')[0]
             sheet_name = self.tree_view.item(item_iid, option = 'values')[1]
-            self.active_book.set('Active Book: \n' + book_name)
-            self.active_sheet.set('Active Sheet: \n' + sheet_name)
-            self.actives_changed(book_name, sheet_name)
-            
+            self.change_active(book_name, sheet_name)
+
+
+
+    def add_dialog(self, event):
+        self.input_name = StringVar()
+        widget_name = event.widget._name
+        if widget_name == "add_sheet" and not self.current_book:
+            messagebox.showerror("No Books", "There are no books available to add a sheet too! Open a file or add a book!")
+        
+        self.name_dialog = Toplevel(width = 512, height = 256, padx = 32, pady = 32)
+        self.instructions_label = ttk.Label(self.name_dialog)
+        self.instructions_label.grid(row = 0, column = 1, columnspan = 2)
+        self.name_entry_label = ttk.Label(self.name_dialog)
+
+        self.ok_button = ttk.Button(self.name_dialog, text = 'Ok', command = self.clean_up_dialog)
+        self.ok_button.grid(row = 2, column = 1, sticky = W)
+        self.cancel_button = ttk.Button(self.name_dialog, text = 'Cancel')
+        self.cancel_button.grid(row = 2, column = 2, sticky = E)
+        
+        if widget_name == "add_book":
+            self.name_dialog.title = 'Add Book'
+            if(self.current_book):
+                self.input_name.set(self.current_book.book_name)
+            self.instructions_label.config(text = 'Please enter a name for the new book:')
+            self.name_entry_label.config(text = 'Book Name: "')
+            self.name_entry_label.grid(row = 1, column = 1)
+            self.name_entry_box = ttk.Entry(self.name_dialog, width = 24, textvariable = self.input_name)
+            self.name_entry_box.grid(row = 1, column = 2)
+            self.ok_button.bind('<ButtonRelease-1>', lambda discard: self.the_librarian.add_book(self.input_name.get()))
+        
+        elif widget_name == "add_sheet":
+            self.name_dialog.title = 'Add Sheet'
+            self.input_name.set(self.current_book.book_name)
+            self.instructions_label.config(text = 'Please enter a name for the new sheet:')
+            self.name_entry_label.config(text = 'Sheet Name: ')
+            self.name_entry_label.grid(row = 1, column = 1)
+            self.name_entry_box = ttk.Entry(self.name_dialog, width = 24, textvariable = self.input_name)
+            self.name_entry_box.grid(row = 1, column = 2)
+            self.ok_button.bind('<ButtonRelease-1>', lambda discard: self.the_librarian.add_sheet(self.input_name.get()))          
+        
+    def remove_dialog(self, event):
+        widget_name = event.widget._name
+        print(widget_name)
+        if widget_name == "remove_book" and self.current_book== None:
+            messagebox.showerror("No Books", "There are currently no books available. Open a file or add a book!")
+            return        
+        elif widget_name == "remove_sheet" and self.current_sheet == None:
+            messagebox.showerror("No Sheets", "There are currently no sheets available. Open a file or add a sheet!")
+            return
+        self.name_dialog = Toplevel(width = 512, height = 256, padx = 32, pady = 32)
+        self.instructions_label = ttk.Label(self.name_dialog)
+        self.instructions_label.grid(row = 0, column = 1, columnspan = 2)
+        self.ok_button = ttk.Button(self.name_dialog, text = 'Ok', command = self.clean_up_dialog)
+        self.ok_button.grid(row = 2, column = 1, sticky = W)
+        self.cancel_button = ttk.Button(self.name_dialog, text = 'Cancel')
+        self.cancel_button.grid(row = 2, column = 2, sticky = E)        
+        if widget_name == "remove_book":
+            book_name = self.active_book.get()
+            self.name_dialog.title = 'Remove Book'
+            self.instructions_label.config(text = 'Are you sure you want to remove ' + self.active_book.get())
+            self.ok_button.bind('ButtonRelease-1>', lambda: self.the_librarian.remove_book(book_name))
+        elif widget_name == "remove_sheet":
+            sheet_name = self.active_sheet.get()
+            self.name_dialog.title = 'Remove Sheet'
+            self.instructions_label.config(text = 'Are you sure you want to remove ' + self.active_sheet.get())
+            self.ok_button.bind('ButtonRelease-1>', lambda: self.the_librarian.remove_sheet(sheet_name))
+        self.name_dialog.columnconfigure(0, weight = 1)
+        self.name_dialog.columnconfigure(3, weight = 1)
+        
+    def clean_up_dialog(self):
+        self.name_dialog.destroy()
+        self.tree_view_update()
+
     ###########################
     ###END HANDLER FUNCTIONS###
     ###########################       
@@ -317,17 +403,13 @@ class nge_interface(ttk.Frame):
         #creates file menu
         self.file_menu = Menu(self.menu_bar, tearoff = 0)
         self.sheets_menu = Menu(self.file_menu, tearoff=0)
-        self.file_menu.add_cascade(label = 'Sheets', menu=self.sheets_menu)
         self.menu_bar.add_cascade(label = 'File', menu=self.file_menu)
-        self.file_menu.add_command(label = 'Save')
-        self.file_menu.add_command(label = 'Save As...')
-        self.file_menu.add_command(label = 'Import image...')
+        self.file_menu.add_command(label = 'New', command = self.new)
+        self.file_menu.add_command(label = 'Open...', command = self.open)
+        self.file_menu.add_command(label = 'Save', command = self.save, state = 'disabled')
+        self.file_menu.add_command(label = 'Save As...', command = self.file_dialog, state = 'disabled')
+        self.file_menu.add_command(label = 'Import image...', command = self.file_dialog)
         self.file_menu.add_command(label = "Quit", command=self.quit)
-
-        #creates sheet cascade, adds to file menu
-        self.sheets_menu.add_command(label = 'New Sheet')
-        self.sheets_menu.add_command(label = 'Open Sheet...')
-        self.sheets_menu.add_command(label = 'Delete Sheet...')
 
         #creates edit menu, menu items, and defines their commands
         self.edit_menu = Menu(self.menu_bar, tearoff = 0)
@@ -353,40 +435,56 @@ class nge_interface(ttk.Frame):
         self.sheet_frame = ttk.LabelFrame(self.top_left_frame, labelanchor = 's', borderwidth = 2, text = "Sheet View")
         self.sheet_frame.grid(row = 0, column = 0, in_ = self.top_left_frame, padx =5, pady = 5, ipadx = 5, ipady = 5)
         self.sheet_frame.grid_columnconfigure(0, weight = 1)
-        self.sheet_frame.grid_columnconfigure(2, weight = 1)
+        self.sheet_frame.grid_columnconfigure(3, weight = 1)
+        self.sheet_frame.grid_rowconfigure(0, weight = 1)
+        self.sheet_frame.grid_rowconfigure(3, weight = 1)
         
         self.sheet_display = Canvas(self.sheet_frame, 
-                                    height=266, 
-                                    width=530, 
+                                    height=264, 
+                                    width=528, 
                                     bg='#FFFFFF', 
                                     border=0, 
                                     borderwidth = 0, 
                                     highlightthickness=0, 
                                     cursor='tcross')
-        self.sheet_display.grid(in_ = self.sheet_frame, row = 0, column = 1)
 
-        self.sheet_label = ttk.Label(self.sheet_frame, text= "Sheet: " + self.current_sheet.sheet_name)
+        self.sheet_display.grid(in_ = self.sheet_frame, row = 1, column = 1, ipadx = 1, ipady = 1, columnspan = 2)
         self.sheet_display.bind('<ButtonRelease-1>', self.sheet_display_clicked)
-        self.sheet_label.grid(in_ = self.sheet_frame, row = 1, column = 1)
+        self.sheet_display_label = ttk.Label(self.sheet_frame, text = "Sheet:")
+        self.sheet_display_label.grid(row = 2, column = 1, in_ = self.sheet_frame, sticky = E)
+        self.sheet_name_box = ttk.Entry(self.sheet_frame, textvariable = self.active_sheet)
+        self.sheet_name_box.bind('<Return>', self.tile_name_enter)
+        self.sheet_name_box.grid(row = 2, column = 2, in_ = self.sheet_frame, sticky = W)
+        self.the_librarian.add_book("test")
+        self.the_librarian.request_book("test")
+        self.the_librarian.add_sheet("sheet")
+        self.current_sheet = self.the_librarian.request_sheet("sheet")
+        self.create_sheet_display_pixels()
 
     def tile_area(self):
+        #create area label0
         self.tile_frame = ttk.LabelFrame(self.top_right_frame, labelanchor = 's', borderwidth = 2, text = 'Character View')
-        self.tile_frame.grid(row = 0, column = 1, in_ = self.top_right_frame)
+        self.tile_frame.grid(row = 0, column = 1, in_ = self.top_right_frame, padx = 5, pady = 5)
+        self.tile_frame.grid_columnconfigure(0, weight = 1)
+        self.tile_frame.grid_columnconfigure(3, weight = 1)
+        self.tile_frame.grid_rowconfigure(0, weight = 1)
+        self.tile_frame.grid_rowconfigure(3, weight = 1)
+        
+        #create canvas to display tile
+        self.tile_display = Canvas(self.tile_frame, height = 264, width = 264, bg = '#FFFFFF', borderwidth = 0, highlightthickness=0)
+        self.tile_display.bind('<ButtonRelease-1>', self.tile_display_clicked) #bind canvas to 
+        self.tile_display.grid(row = 1, column = 1, columnspan = 2, in_=self.tile_frame, padx = 5, pady = 5, ipadx = 1, ipady = 1)
+        self.create_tile_display_pixels()
 
-        self.tile_display = Canvas(self.tile_frame, height = 266, width = 266, bg = '#FFFFFF', borderwidth = 0, highlightthickness=0)
-        self.tile_display.bind('<Motion>', self.mouse_over_tile_display)
-        self.tile_display.bind('<Leave>', self.mouse_left_tile_display)
-        self.tile_display.bind('<ButtonRelease-1>', self.tile_display_clicked)
-        self.tile_display.grid(row = 1, columnspan = 2, in_=self.tile_frame)
-
-        tile_display_string = "Object " + str(self.current_char.obj_num) + ": "
+        #create label to indicate current object
+        current_char_number = self.active_char_num.get()
+        tile_display_string = "Object " + current_char_number + ": "
         self.tile_display_label = ttk.Label(self.tile_frame, text = tile_display_string)
-        self.tile_display_label.grid(row = 2, column = 0, sticky = E, in_ = self.tile_frame)
+        self.tile_display_label.grid(row = 2, column = 1, in_ = self.tile_frame, sticky = E)
 
-        self.entry_text.set(self.current_char.name)
-        self.tile_name_box = ttk.Entry(self.tile_frame, textvariable = self.entry_text)
+        self.tile_name_box = ttk.Entry(self.tile_frame, textvariable = self.active_char)
         self.tile_name_box.bind('<Return>', self.tile_name_enter)
-        self.tile_name_box.grid(row = 2, column = 1, sticky = W, in_ = self.tile_frame)
+        self.tile_name_box.grid(row = 2, column = 2, in_ = self.tile_frame, sticky = W)
 
     def tool_area(self):
         self.tool_frame = ttk.LabelFrame(self.top_right_frame, labelanchor = 's', borderwidth = 2, text = 'Tools')
@@ -396,15 +494,15 @@ class nge_interface(ttk.Frame):
         self.select_button.bind('<ButtonRelease-1>', self.tool_button_clicked)
         self.select_button.grid(in_ = self.tool_frame)
 
-        self.pencil_button = Button(self.tool_frame, name = self.Pencil.tool_name, bitmap = self.Pencil.tool_bitmap, width = 64, height = 64)
+        self.pencil_button = Button(self.tool_frame, name = self.Pencil.tool_name, bitmap = '@pencil.xbm', width = 64, height = 64)
         self.pencil_button.bind('<ButtonRelease-1>', self.tool_button_clicked)
         self.pencil_button.grid(in_ = self.tool_frame)
         
-        self.eraser_button = Button(self.tool_frame, name = self.Eraser.tool_name, bitmap = self.Eraser.tool_bitmap, width = 64, height = 64)
+        self.eraser_button = Button(self.tool_frame, name = self.Eraser.tool_name, bitmap = '@eraser.xbm', width = 64, height = 64)
         self.eraser_button.bind('<ButtonRelease-1>', self.tool_button_clicked)
         self.eraser_button.grid(in_ = self.tool_frame)
         
-        self.bucket_button = Button(self.tool_frame, name = self.Bucket.tool_name, bitmap = self.Bucket.tool_bitmap, width = 64, height = 64)
+        self.bucket_button = Button(self.tool_frame, name = self.Bucket.tool_name, bitmap = '@bucket.xbm', width = 64, height = 64)
         self.bucket_button.bind('<ButtonRelease-1>', self.tool_button_clicked)
         self.bucket_button.grid(in_ = self.tool_frame)
 
@@ -413,12 +511,12 @@ class nge_interface(ttk.Frame):
         self.color_frame.grid(row = 0, column = 2, in_ = self.top_right_frame, sticky = N+S)
 
         self.palette_frame = ttk.LabelFrame(self.color_frame, labelanchor = 's', borderwidth = 0, text= 'Palette')
-        self.palette_frame.grid(in_ = self.color_frame)
+        self.palette_frame.grid(row = 0, in_ = self.color_frame)
         self.palette_frame.columnconfigure(0, weight = 1)
         self.palette_frame.columnconfigure(2, weight = 1)
 
         self.current_color_frame = ttk.LabelFrame(self.color_frame, labelanchor='s', borderwidth = 0, text='Current')
-        self.current_color_frame.grid(in_ = self.color_frame)
+        self.current_color_frame.grid(row = 1, in_ = self.color_frame, sticky = S)
         self.current_color_frame.columnconfigure(0, weight = 1)
         self.current_color_frame.columnconfigure(2, weight = 1)
 
@@ -439,23 +537,22 @@ class nge_interface(ttk.Frame):
         self.white_swatch.grid(in_ = self.palette_frame, row = 3, column = 1)
 
         self.current_color_swatch = Canvas(self.current_color_frame, height = 32, width = 32, borderwidth = 3, relief = 'sunken', bg = NGE_WHITE)
-        self.current_color_swatch.grid(in_ = self.current_color_frame, row = 1, column = 1)
+        self.current_color_swatch.grid(pady = 5, in_ = self.current_color_frame, row = 1, column = 1)
         
 
     def text_area(self):
 
         self.text_frame = ttk.LabelFrame(self.bottom_right_frame, labelanchor='s', borderwidth = 2, text = 'Hex Data')
-        self.text_frame.grid(row = 1, column = 1, in_ = self.bottom_right_frame, columnspan = 3)
+        self.text_frame.grid(row = 1, column = 1, in_ = self.bottom_right_frame, columnspan = 3, ipadx = 5, ipady = 5, padx = 5, pady = 5)
         self.hex_display = Text(self.text_frame, width=53, height=16)
         self.hex_display.grid(row = 0, column = 0, in_ = self.text_frame)
         self.hex_display_scrollbar = Scrollbar(self.text_frame, orient = VERTICAL, command=self.hex_display.yview)
         self.hex_display_scrollbar.grid(row = 0, column = 1, sticky=N+S, in_ = self.text_frame)
         self.hex_display['yscrollcommand'] = self.hex_display_scrollbar.set
-        self.text_area_setup()
 
     def tree_area(self):
         self.tree_area_frame = ttk.LabelFrame(self.bottom_left_frame, labelanchor='s', borderwidth = 2, text = 'Information')
-        self.tree_area_frame.grid(row = 1, column = 0, in_ = self.bottom_left_frame)
+        self.tree_area_frame.grid(row = 1, column = 0, in_ = self.bottom_left_frame, sticky=N+S, padx = 5, pady =5, ipadx = 5, ipady = 5)
         self.tree_view_frame = ttk.Frame(self.tree_area_frame)
         self.tree_view_frame.grid(row = 0, column = 0, in_ = self.tree_area_frame)
         self.info_frame = ttk.LabelFrame(self.tree_area_frame, labelanchor = 's', text = 'Active Items')
@@ -471,35 +568,38 @@ class nge_interface(ttk.Frame):
         self.tree_view.column('Length', width = 60)
         self.tree_view.heading('Length', text='Length')
         self.tree_view.grid(column=0, row =0, columnspan = 2, in_ = self.tree_area_frame)
-        self.tree_view.bind('<Double-ButtonRelease-1>', self.make_active)
+        self.tree_view.bind('<<TreeviewSelect>>', self.make_active)
 
         self.book_controls = ttk.Frame(self.tree_area_frame)
         self.book_controls.grid(row = 1, column = 0, in_ = self.tree_area_frame)
         self.add_book_button = ttk.Button(self.book_controls, name = 'add_book', text = '+', width = 2)
         self.add_book_button.grid(row = 0, column = 0, in_ = self.book_controls)
-        self.add_book_button.bind('<ButtonRelease-1>', self.add_remove_items)
+        self.add_book_button.bind('<ButtonRelease-1>', self.add_dialog)
         self.book_label = ttk.Label(self.book_controls, text = "Book")
         self.book_label.grid(row = 0, column = 1, in_ = self.book_controls)
         self.remove_book_button = ttk.Button(self.book_controls, name = 'remove_book', text = '-', width = 2)
         self.remove_book_button.grid(row = 0, column = 2, in_ = self.book_controls)
-        self.remove_book_button.bind('<ButtonRelease-1>', self.add_remove_items)
+        self.remove_book_button.bind('<ButtonRelease-1>', self.remove_dialog)
 
         self.sheet_controls = ttk.Frame(self.tree_area_frame)
         self.sheet_controls.grid(row=1, column = 1, in_ = self.tree_area_frame)
         self.add_sheet_button = ttk.Button(self.sheet_controls, name = 'add_sheet', text = '+', width = 2)
         self.add_sheet_button.grid(row = 0, column = 0, in_ = self.sheet_controls)
-        self.add_sheet_button.bind('<ButtonRelease-1>', self.add_remove_items)
+        self.add_sheet_button.bind('<ButtonRelease-1>', self.add_dialog)
         self.sheet_label = ttk.Label(self.sheet_controls, text = "Sheet")
         self.sheet_label.grid(row = 0, column = 1, in_ = self.sheet_controls)
         self.remove_sheet_button = ttk.Button(self.sheet_controls, name = 'remove_sheet', text = '-', width = 2)
         self.remove_sheet_button.grid(row = 0, column = 2, in_ = self.sheet_controls)
-        self.remove_sheet_button.bind('<ButtonRelease-1>', self.add_remove_items)
+        self.remove_sheet_button.bind('<ButtonRelease-1>', self.remove_dialog)
 
+        self.active_book_label = ttk.Label(self.info_frame, text = 'Active Book: ')
+        self.active_book_label.grid(column = 0, row = 0, in_=self.info_frame)
         self.active_book_name = ttk.Label(self.info_frame, textvariable = self.active_book)
-        self.active_book_name.grid(column = 0, row = 0, in_=self.info_frame)
+        self.active_book_name.grid(column = 0, row = 1, in_=self.info_frame)
+        self.active_sheet_label = ttk.Label(self.info_frame, text = 'Active Sheet: ')
+        self.active_sheet_label.grid(column = 0, row = 2, in_=self.info_frame)
         self.active_sheet_name = ttk.Label(self.info_frame, textvariable = self.active_sheet)
-        self.active_sheet_name.grid(column = 0, row = 1, in_=self.info_frame)
-        self.tree_view_setup()
+        self.active_sheet_name.grid(column = 0, row = 3, in_=self.info_frame)
     ##########################
     ###END WIDGET FUNCTIONS###
     ##########################

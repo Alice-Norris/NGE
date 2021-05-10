@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
 
+
         {
             "name": "NGE",
             "type": "python",
@@ -18,6 +19,13 @@
             "type": "python",
             "request": "launch",
             "program": "./librarian-test.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: file test",
+            "type": "python",
+            "request": "launch",
+            "program": "./nge_files.py",
             "console": "integratedTerminal"
         }
     ]

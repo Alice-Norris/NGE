@@ -10,6 +10,7 @@ def character_to_hex(character):
     hexit_2 = ""
     char_hex = ""
     pixel_counter = 0
+    print(character.data)
     for pixel in character.data:
         pixel_counter += 1
         if pixel == 3:
@@ -61,6 +62,3 @@ def character_row_to_hex(character, row_num):
             second_byte += "1"
     hex_row = first_byte + second_byte
     char_hex += (hex(int(hex_row, 2))[2:6].zfill(4))
-
-def update_character_data(character, color, pixel):
-    character.data[pixel - 1] = COLOR_DICT[color]
